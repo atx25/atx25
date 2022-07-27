@@ -13,7 +13,6 @@ const char pass[] = "15660090095";//wifi密码
 
 #include "img/pangzi/i0.h"
 #include "img/pangzi/i1.h"
-#include "img/pangzi/i2.h"
 #include "img/pangzi/i3.h"
 #include "img/pangzi/i4.h"
 #include "img/pangzi/i5.h"
@@ -235,6 +234,7 @@ void getCityWeater(){
       if (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_MOVED_PERMANENTLY) { // 服务器响应
         String str = https.getString();
         
+        putjson(str.c_str());
       }
     } else { // 错误返回负值
       Serial.printf("[HTTPS] GET... failed, error: %s\n", https.errorToString(httpCode).c_str());
@@ -331,7 +331,7 @@ const char* lives_0_reporttime = lives_0["reporttime"]; // "2022-07-27 15:30:11"
   
   clk.unloadFont();
 
-}}
+}
 
 int currentIndex = 0;
 int prevTime = 0;

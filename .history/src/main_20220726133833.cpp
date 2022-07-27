@@ -2,7 +2,6 @@
 #include <TimeLib.h>
 #include <ESP8266WiFi.h>
 #include <WiFiUdp.h>
-#include <ArduinoJson.h>
 #include <ESP8266HTTPClient.h>
 
 const char ssid[] = "HUAWEI-0409E6";//wifi名称
@@ -13,7 +12,6 @@ const char pass[] = "15660090095";//wifi密码
 
 #include "img/pangzi/i0.h"
 #include "img/pangzi/i1.h"
-#include "img/pangzi/i2.h"
 #include "img/pangzi/i3.h"
 #include "img/pangzi/i4.h"
 #include "img/pangzi/i5.h"
@@ -39,9 +37,6 @@ uint32_t targetTime = 0;
 byte omm = 99;
 boolean initial = 1;
 byte xcolon = 0;
-String location="411627";
-String key="d4055a0ac0848d29ab8bb6e4ad498d7a";
-String extensions="base";
 unsigned int colour = 0;
 
 uint16_t bgColor = 0xFFFF;
@@ -52,8 +47,6 @@ String cityCode = "";//天气城市代码
 static const char ntpServerName[] = "ntp6.aliyun.com";
 const int timeZone = 8;     //东八区
 
-time_t prevDisplay = 0; // 显示时间
-unsigned long weaterTime = 0;
 
 WiFiUDP Udp;
 unsigned int localPort = 8000;
@@ -61,13 +54,9 @@ unsigned int localPort = 8000;
 time_t getNtpTime();
 void digitalClockDisplay();
 void printDigits(int digits);
-void getcityCode();
-void getCityWeater();
-void scrollBanner();
-void scrollText();
-void imgAnim();
 String num2str(int digits);
 void sendNTPpacket(IPAddress &address);
+
 
 bool tft_output(int16_t x, int16_t y, uint16_t w, uint16_t h, uint16_t* bitmap)
 {
@@ -78,7 +67,6 @@ bool tft_output(int16_t x, int16_t y, uint16_t w, uint16_t h, uint16_t* bitmap)
 }
 
 byte loadNum = 6;
-
 void loading(byte delayTime){
   clk.setColorDepth(8);
   
@@ -99,8 +87,9 @@ void loading(byte delayTime){
   delay(delayTime);
 }
 
-void setup(){
-    Serial.begin(115200);
+void setup()
+{
+  Serial.begin(9600);
 
   tft.init();
   tft.setRotation(0);
@@ -122,7 +111,7 @@ void setup(){
     loading(1);
   }
 
-  Serial.print("本地IP: ");
+  Serial.print("本地IP： ");
   Serial.println(WiFi.localIP());
   //Serial.println("启动UDP");
   Udp.begin(localPort);
@@ -156,11 +145,16 @@ void setup(){
   
   tft.drawFastVLine(60,166,34,TFT_BLACK);
   tft.drawFastVLine(160,166,34,TFT_BLACK);
-  getcityCode();  //获取城市代码
+
+  getCityCode();  //获取城市代码
   
   TJpgDec.drawJpg(161,171,temperature, sizeof(temperature));  //温度图标
   TJpgDec.drawJpg(159,130,humidity, sizeof(humidity));  //湿度图标
+  
 }
+
+time_t prevDisplay = 0; // 显示时间
+unsigned long weaterTime = 0;
 
 void loop(){
   
@@ -179,7 +173,7 @@ void loop(){
 }
 
 // 发送HTTP请求并且将服务器响应通过串口输出
-void getcityCode(){
+void getCityCode(){
  String URL = "http://wgeo.weather.com.cn/ip/?_="+String(now());
   //创建 HTTPClient 对象
   HTTPClient httpClient;
@@ -221,61 +215,66 @@ void getcityCode(){
 }
 
 
+
 // 获取城市天气
 void getCityWeater(){
-  // client.setInsecure();
- Serial.println("[HTTPS] begin...");
-  String url = "https://restapi.amap.com/v3/weather/weatherInfo?&city="
-                + location + "&key=" + key + "&extensions=" + extensions;
-  if(https.begin(client,url)){
-    Serial.println("[HTTPS] GET...");
-    int httpCode = https.GET();
-    if(httpCode >= 0){
-      Serial.printf("[HTTPS] GET... code: %d\n", httpCode);
-      if (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_MOVED_PERMANENTLY) { // 服务器响应
-        String str = https.getString();
-        
-      }
-    } else { // 错误返回负值
-      Serial.printf("[HTTPS] GET... failed, error: %s\n", https.errorToString(httpCode).c_str());
-    }
-    https.end();
-    }
-  else { // HTTPS连接失败
-    Serial.printf("[HTTPS] Unable to connect\n");
+ String URL = "http://d1.weather.com.cn/weather_index/" + cityCode + ".html?_="+String(now());
+  //创建 HTTPClient 对象
+  HTTPClient httpClient;
+  
+  httpClient.begin(URL); 
+  
+  //设置请求头中的User-Agent
+  httpClient.setUserAgent("Mozilla/5.0 (iPhone; CPU iPhone OS 11_0 like Mac OS X) AppleWebKit/604.1.38 (KHTML, like Gecko) Version/11.0 Mobile/15A372 Safari/604.1");
+  httpClient.addHeader("Referer", "http://www.weather.com.cn/");
+ 
+  //启动连接并发送HTTP请求
+  int httpCode = httpClient.GET();
+  Serial.println("正在获取天气数据");
+  Serial.println(URL);
+  
+  //如果服务器响应OK则从服务器获取响应体信息并通过串口输出
+  if (httpCode == HTTP_CODE_OK) {
+
+    String str = httpClient.getString();
+    int indexStart = str.indexOf("weatherinfo\":");
+    int indexEnd = str.indexOf("};var alarmDZ");
+
+    String jsonCityDZ = str.substring(indexStart+13,indexEnd);
+    Serial.println(jsonCityDZ);
+
+    indexStart = str.indexOf("dataSK =");
+    indexEnd = str.indexOf(";var dataZS");
+    String jsonDataSK = str.substring(indexStart+8,indexEnd);
+    Serial.println(jsonDataSK);
+
+    
+    indexStart = str.indexOf("\"f\":[");
+    indexEnd = str.indexOf(",{\"fa");
+    String jsonFC = str.substring(indexStart+5,indexEnd);
+    Serial.println(jsonFC);
+    
+    weaterData(&jsonCityDZ,&jsonDataSK,&jsonFC);
+    Serial.println("获取成功");
+    
+  } else {
+    Serial.println("请求城市天气错误：");
+    Serial.print(httpCode);
   }
+ 
+  //关闭ESP8266与服务器连接
+  httpClient.end();
 }
+
 
 String scrollText[6];
 //int scrollTextWidth = 0;
 //天气信息写到屏幕上
-// String input;
-
-StaticJsonDocument<512> doc;
-
-DeserializationError error = deserializeJson(doc, str);
-
-if (error) {
-  Serial.print(F("deserializeJson() failed: "));
-  Serial.println(error.f_str());
-  return;
-}
-
-const char* status = doc["status"]; // "1"
-const char* count = doc["count"]; // "1"
-const char* info = doc["info"]; // "OK"
-const char* infocode = doc["infocode"]; // "10000"
-
-JsonObject lives_0 = doc["lives"][0];
-const char* lives_0_province = lives_0["province"]; // "河南"
-const char* lives_0_city = lives_0["city"]; // "太康县"
-const char* lives_0_adcode = lives_0["adcode"]; // "411627"
-const char* lives_0_weather = lives_0["weather"]; // "阴"
-const char* lives_0_temperature = lives_0["temperature"]; // "33"
-const char* lives_0_winddirection = lives_0["winddirection"]; // "东南"
-const char* lives_0_windpower = lives_0["windpower"]; // "≤3"
-const char* lives_0_humidity = lives_0["humidity"]; // "59"
-const char* lives_0_reporttime = lives_0["reporttime"]; // "2022-07-27 15:30:11"
+void weaterData(String *cityDZ,String *dataSK,String *dataFC){
+  
+  DynamicJsonDocument doc(512);
+  deserializeJson(doc, *dataSK);
+  JsonObject sk = doc.as<JsonObject>();
 
   //TFT_eSprite clkb = TFT_eSprite(&tft);
   
@@ -288,7 +287,7 @@ const char* lives_0_reporttime = lives_0["reporttime"]; // "2022-07-27 15:30:11"
   clk.fillSprite(bgColor);
   clk.setTextDatum(CC_DATUM);
   clk.setTextColor(TFT_BLACK, bgColor); 
-  clk.drawString(lives_0_humidity.c_str()+"℃",27,16);
+  clk.drawString(sk["temp"].as<String>()+"℃",27,16);
   clk.pushSprite(185,168);
   clk.deleteSprite();
 
@@ -297,41 +296,73 @@ const char* lives_0_reporttime = lives_0["reporttime"]; // "2022-07-27 15:30:11"
   clk.fillSprite(bgColor);
   clk.setTextDatum(CC_DATUM);
   clk.setTextColor(TFT_BLACK, bgColor); 
-  clk.drawString(lives_0_city.c_str(),44,16);
+  clk.drawString(sk["cityname"].as<String>(),44,16);
   clk.pushSprite(151,1);
   clk.deleteSprite();
   
-
+  //PM2.5空气指数
+  uint16_t pm25BgColor = tft.color565(156,202,127);//优
+  String aqiTxt = "优";
+  int pm25V = sk["aqi"];
+  if(pm25V>200){
+    pm25BgColor = tft.color565(136,11,32);//重度
+    aqiTxt = "重度";
+  }else if(pm25V>150){
+    pm25BgColor = tft.color565(186,55,121);//中度
+    aqiTxt = "中度";
+  }else if(pm25V>100){
+    pm25BgColor = tft.color565(242,159,57);//轻
+    aqiTxt = "轻度";
+  }else if(pm25V>50){
+    pm25BgColor = tft.color565(247,219,100);//良
+    aqiTxt = "良";
+  }
   clk.createSprite(50, 24); 
   clk.fillSprite(bgColor);
   clk.fillRoundRect(0,0,50,24,4,pm25BgColor);
   clk.setTextDatum(CC_DATUM);
   clk.setTextColor(0xFFFF); 
-  clk.drawString(lives_0_temperature.c_str(),25,13);
+  clk.drawString(aqiTxt,25,13);
   clk.pushSprite(5,130);
   clk.deleteSprite();
 
-  scrollText[0] = "实时天气 "+lives_0_weather.c_str();
-  scrollText[1] = "空气质量 "+lives_0_temperature.c_str();
-  scrollText[2] = "风向 "+lives_0_winddirection.c_str();
+  //湿度
+  clk.createSprite(56, 24); 
+  clk.fillSprite(bgColor);
+  clk.setTextDatum(CC_DATUM);
+  clk.setTextColor(TFT_BLACK, bgColor); 
+  clk.drawString(sk["SD"].as<String>(),28,13);
+  //clk.drawString("100%",28,13);
+  clk.pushSprite(180,130);
+  clk.deleteSprite();
+
+  
+  scrollText[0] = "实时天气 "+sk["weather"].as<String>();
+  scrollText[1] = "空气质量 "+aqiTxt;
+  scrollText[2] = "风向 "+sk["WD"].as<String>()+sk["WS"].as<String>();
+  
   //左上角滚动字幕
   //解析第二段JSON
-
+  deserializeJson(doc, *cityDZ);
+  JsonObject dz = doc.as<JsonObject>();
   //Serial.println(sk["ws"].as<String>());
   //横向滚动方式
   //String aa = "今日天气:" + dz["weather"].as<String>() + "，温度:最低" + dz["tempn"].as<String>() + "，最高" + dz["temp"].as<String>() + " 空气质量:" + aqiTxt + "，风向:" + dz["wd"].as<String>() + dz["ws"].as<String>();
   //scrollTextWidth = clk.textWidth(scrollText);
   //Serial.println(aa);
-  scrollText[3] = "今日"+lives_0_weather.c_str();
+  scrollText[3] = "今日"+dz["weather"].as<String>();
   
-  scrollText[4] = "最低温度"+forecasts_0_casts_0_nighttemp.c_str()+"℃";
-  scrollText[5] = "最高温度"+forecasts_0_casts_0_daytemp.c_str()+"℃";
+  deserializeJson(doc, *dataFC);
+  JsonObject fc = doc.as<JsonObject>();
+  
+  scrollText[4] = "最低温度"+fc["fd"].as<String>()+"℃";
+  scrollText[5] = "最高温度"+fc["fc"].as<String>()+"℃";
   
   //Serial.println(scrollText[0]);
   
   clk.unloadFont();
 
-}}
+}
 
 int currentIndex = 0;
 int prevTime = 0;

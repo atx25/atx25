@@ -13,7 +13,6 @@ const char pass[] = "15660090095";//wifi密码
 
 #include "img/pangzi/i0.h"
 #include "img/pangzi/i1.h"
-#include "img/pangzi/i2.h"
 #include "img/pangzi/i3.h"
 #include "img/pangzi/i4.h"
 #include "img/pangzi/i5.h"
@@ -39,9 +38,6 @@ uint32_t targetTime = 0;
 byte omm = 99;
 boolean initial = 1;
 byte xcolon = 0;
-String location="411627";
-String key="d4055a0ac0848d29ab8bb6e4ad498d7a";
-String extensions="base";
 unsigned int colour = 0;
 
 uint16_t bgColor = 0xFFFF;
@@ -235,6 +231,7 @@ void getCityWeater(){
       if (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_MOVED_PERMANENTLY) { // 服务器响应
         String str = https.getString();
         
+        putjson(str.c_str());
       }
     } else { // 错误返回负值
       Serial.printf("[HTTPS] GET... failed, error: %s\n", https.errorToString(httpCode).c_str());
@@ -253,7 +250,7 @@ String scrollText[6];
 
 StaticJsonDocument<512> doc;
 
-DeserializationError error = deserializeJson(doc, str);
+DeserializationError error = deserializeJson(doc, input);
 
 if (error) {
   Serial.print(F("deserializeJson() failed: "));
@@ -331,7 +328,7 @@ const char* lives_0_reporttime = lives_0["reporttime"]; // "2022-07-27 15:30:11"
   
   clk.unloadFont();
 
-}}
+}
 
 int currentIndex = 0;
 int prevTime = 0;
